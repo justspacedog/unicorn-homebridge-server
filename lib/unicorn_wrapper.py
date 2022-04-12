@@ -16,10 +16,14 @@ class UnicornWrapper:
                 hat = 'phat'
 
         if hat == 'mini':
-            self.hat = UnicornHATMini()
+#            self.hat = UnicornHATMini()
+            self.hat = unicornhat
             self.type = hat
-            self.hat.set_brightness(0.5)
-            self.hat.set_rotation(90)
+            self.hat.set_layout(unicornhat.PHAT)
+#            self.hat.set_brightness(0.5)
+#            self.hat.set_rotation(90)
+            self.hat.brightness(0.5)
+            self.hat.rotation(90)
         elif hat == 'dummy':
             self.hat = None
             self.type = 'none'
@@ -62,16 +66,17 @@ class UnicornWrapper:
             with contextlib.redirect_stdout(f):
                 self.hat.brightness(brightness)
         elif self.type == 'mini':
-            self.hat.set_brightness(brightness)
+#            self.hat.set_brightness(brightness)
+                self.hat.brightness(brightness)
     
     def setPixel(self, x, y, r, g, b):
         self.hat.set_pixel(x, y, r, g, b)
     
     def setColour(self, r = None, g = None, b = None, RGB = None):
-        if RGB is not None:
-            r = RGB[0]
-            g = RGB[1]
-            b = RGB[2] 
+#        if RGB is not None:
+#            r = RGB[0]
+#            g = RGB[1]
+#            b = RGB[2] 
         self.hat.clear()
         for x in range(self.width):
             for y in range(self.height):
@@ -98,7 +103,7 @@ class UnicornWrapper:
     # Colour converstion operations as we only understand RGB
     def hsvIntToRGB(self, h, s, v):
         h = h / 360
-        s = s /100
+        s = s / 100
         v = v / 100
         return tuple(round(i * 255) for i in colorsys.hsv_to_rgb(h,s,v))
     
@@ -113,4 +118,4 @@ class UnicornWrapper:
             b = int(f"{html[5]}{html[6]}", 16)
         else:
             raise Exception("The Hex value is not in the correct format it should RRGGBB or #RRGGBB the same as HTML")
-        return tuple(r,g,b)
+        return tuple((r,g,b))

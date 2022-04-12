@@ -20,11 +20,13 @@ crntColors = None
 globalRed = 0
 globalGreen = 0
 globalBlue = 0
+globalColour = 0
 globalBrightness = 0
 globalLastCalled = None
 globalLastCalledApi = None
 globalStatus = None
 globalStatusOverwrite = False
+globalFistRun = False
 
 # Initialize the Unicorn hat
 unicorn = UnicornWrapper()
@@ -41,14 +43,19 @@ class MyFlaskApp(Flask):
 		super(MyFlaskApp, self).run(host=host, port=port, debug=debug, load_dotenv=load_dotenv, **options)
 
 
-app = MyFlaskApp(__name__, static_folder='frontend/build', static_url_path='/')
+app = MyFlaskApp(__name__, static_folder='frontend/build', static_url_path='')
 cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 
 def setColor(r, g, b, brightness=0.5, speed=None):
-	global crntColors
+	global globalFirstRun, globalBrightness, crntColors
+
+	if globalBrightness is 0:
+		globalBrightness = 1.0
+
 	setPixels(r, g, b, brightness)
 	unicorn.show()
+	switchOn()
 
 	if speed is not None and speed != '':
 		crntT = threading.currentThread()
@@ -62,37 +69,47 @@ def setColor(r, g, b, brightness=0.5, speed=None):
 			sleep(speed)
 
 
-def setPixels(r, g, b, brightness=0.5):
-	global globalBrightness, globalBlue, globalGreen, globalRed
+def setPixels(r, g, b, brightness):
+	global globalRed, globalGreen, globalBlue, globalBrightness
 
 	globalRed = r
 	globalGreen = g
 	globalBlue = b
 
-	if brightness is not None:
-		globalBrightness = brightness
-		unicorn.setBrightness(brightness)
+#	if brightness is 0:
+#		brightness = 0.5
 
+	globalBrightness = brightness
+
+	unicorn.setBrightness(globalBrightness)
 	unicorn.setColour(r, g, b)
 
-
 def switchOn():
-	rgb = unicorn.hsvIntToRGB(randint(0, 360), 100, 100)
-	blinkThread = threading.Thread(target=setColor, args=(rgb[0], rgb[1], rgb[2]))
-	blinkThread.do_run = True
-	blinkThread.start()
+	global blinkThread, globalFirstRun, globalBlue, globalGreen, globalRed, globalBrightness, globalStatus
 
+	if globalFirstRun is True:
+		if globalBrightness is 0:
+			globalBrightness = 1.0
+		globalFirstRun = False
+
+	setPixels(globalRed, globalGreen, globalBlue, globalBrightness)
+
+	globalStatus = 'on'
+#	rgb = unicorn.hsvIntToRGB(globalBlue, globalGreen, globalRed)
+#	blinkThread = threading.Thread(target=setColor, args=(rgb[0], rgb[1], rgb[2]))
+#	blinkThread.do_run = True
+#	blinkThread.start()
 
 def switchOff():
-	global blinkThread, globalBlue, globalGreen, globalRed
-	globalRed = 0
-	globalGreen = 0
-	globalBlue = 0
+	global blinkThread, globalRed, globalGreen, globalBlue, globalStatus
+#	globalRed = 0
+#	globalGreen = 0
+#	globalBlue = 0
 	if blinkThread is not None:
 		blinkThread.do_run = False
 	unicorn.clear()
 	unicorn.off()
-
+	globalStatus = 'off'
 
 def halfBlink():
 	unicorn.show()
@@ -126,17 +143,18 @@ def countDown(time):
 
 
 def displayRainbow(brightness, speed, run=None):
-	global crntColors
+	global globalFirstRun, crntColors
 	if speed is None:
-		speed = 0.01
-	if brightness is None:
-		brightness = 0.5
+		speed = 0.1
+#	if brightness is None:
+#		brightness = 0.5
 	crntT = threading.currentThread()
 	i = 0.0
 	offset = 30
 	while getattr(crntT, "do_run", True):
 		i = i + 0.3
-		unicorn.setBrightness(brightness)
+		if globalFirstRun is False:
+			unicorn.setBrightness(brightness)
 		for x in range(0, width):
 			for y in range(0, height):
 				r = 0  # x * 32
@@ -175,6 +193,7 @@ def apiOn():
 	switchOff()
 	switchOn()
 	setTimestamp()
+	unicorn.show()
 	return make_response(jsonify({}))
 
 
@@ -225,7 +244,7 @@ def apiSwitch():
 
 @app.route('/api/available', methods=['GET', 'POST'])
 def availableCall():
-	global globalStatusOverwrite, globalStatus, globalLastCalledApi, blinkThread
+	global globalStatusOverwrite, globalStatus, globalBrightness, globalLastCalledApi, blinkThread
 	globalStatusOverwrite = True
 	globalStatus = 'Available'
 	globalLastCalledApi = '/api/available'
@@ -238,7 +257,7 @@ def availableCall():
 
 @app.route('/api/busy', methods=['GET', 'POST'])
 def busyCall():
-	global globalStatusOverwrite, globalStatus, globalLastCalledApi, blinkThread
+	global globalStatusOverwrite, globalStatus, globalBrightness, globalLastCalledApi, blinkThread
 	globalStatusOverwrite = True
 	globalStatus = 'Busy'
 	globalLastCalledApi = '/api/busy'
@@ -251,7 +270,7 @@ def busyCall():
 
 @app.route('/api/away', methods=['GET', 'POST'])
 def awayCall():
-	global globalStatusOverwrite, globalStatus, globalLastCalledApi, blinkThread
+	global globalStatusOverwrite, globalStatus, globalBrightness, globalLastCalledApi, blinkThread
 	globalStatusOverwrite = True
 	globalStatus = 'Away'
 	globalLastCalledApi = '/api/away'
@@ -269,37 +288,37 @@ def resetCall():
 	return make_response(jsonify())
 
 
-@app.route('/api/rainbow', methods=['POST'])
+@app.route('/api/rainbow', methods=['GET', 'POST'])
 def apiDisplayRainbow():
 	global blinkThread, globalStatus, globalLastCalledApi
+	switchOff()
 	globalStatus = 'rainbow'
 	globalLastCalledApi = '/api/rainbow'
-	switchOff()
-	data = request.get_data(as_text=True)
-	content = json.loads(jsmin(request.get_data(as_text=True)))
-	brightness = content.get('brightness', None)
-	speed = content.get('speed', None)
-	blinkThread = threading.Thread(target=displayRainbow, args=(brightness, speed, None))
+#	data = request.get_data(as_text=True)
+#	content = json.loads(jsmin(request.get_data(as_text=True)))
+#	brightness = content.get('brightness', None)
+#	speed = content.get('speed', None)
+#	blinkThread = threading.Thread(target=displayRainbow, args=(brightness, speed, None))
+	blinkThread = threading.Thread(target=displayRainbow, args=(1.0, 0.1, None))
 	blinkThread.do_run = True
 	blinkThread.start()
 	setTimestamp()
 	return make_response(jsonify())
 
-
 @app.route('/api/status', methods=['GET'])
 def apiStatus():
-	global globalStatusOverwrite, globalStatus, globalBlue, globalGreen, globalRed, globalBrightness, \
-		globalLastCalled, globalLastCalledApi, width, height, unicorn
+	global globalStatusOverwrite, globalStatus, globalRed, globalGreen, globalBlue, globalBrightness, \
+			globalLastCalled, globalLastCalledApi, width, height, unicorn
 
 	cpu = CPUTemperature()
 	return jsonify({
-		'red': globalRed, 
+		'red': globalRed,
 		'green': globalGreen,
 		'blue': globalBlue,
 		'brightness': globalBrightness,
 		'lastCalled': globalLastCalled,
 		'cpuTemp': cpu.temperature,
-		'lastCalledApi': globalLastCalledApi, 
+		'lastCalledApi': globalLastCalledApi,
 		'height': height,
 		'width': width,
 		'unicorn': unicorn.getType(),
@@ -307,18 +326,127 @@ def apiStatus():
 		'statusOverwritten': globalStatusOverwrite
 	})
 
-
 @app.errorhandler(404)
 def not_found(error):
 	return make_response(jsonify({'error': 'Not found'}), 404)
 
-
 def startupRainbow():
-	global blinkThread
+	global globalFirstRun, globalRed, globalGreen, globalBlue, globalBrightness, globalStatus, blinkThread
+	if globalRed is 0:
+		 globalRed = 215
+	if globalGreen is 0:
+		 globalGreen = 145
+	if globalBlue is 0:
+		 globalBlue = 75
+	if globalBrightness is 0:
+		 globalBrightness = 1.0
+		 unicorn.setBrightness(globalBrightness)
+	globalFirstRun = True
+
+	globalStatus = 'rainbow'
+
 	blinkThread = threading.Thread(target=displayRainbow, args=(1, 0.1, 1))
 	blinkThread.do_run = True
 	blinkThread.start()
 
+# fadeout the startupRainbow while we are waiting for the homebridge.service to start
+	threading.Thread(target=fadeout).start()
+
+def fadeout():
+	import time as t
+	global globalFirstRun, globalBrightness
+
+	seconds = 300-90 # my homebridge needs approximately 5 minutes to start, this server is started after 90 seconds
+	brightness = 100+25 # under brightness of 0.25 there might not be a rainbow, so we start 25 steps above - if it is over 100, the first 25 setps are treated as 100
+	if globalBrightness > 100:
+		 globalBrightness = 1.0
+	else:
+		 globalBrightness = float(brightness/100)
+
+	for s in range(seconds):
+		if globalFirstRun is False:
+			 globalBrightness = 1.0
+			 return # stop if there was an brightness or color setting done by this server over HTTP
+		if (brightness > seconds):
+			 print("brightness value needs to be smaller or same than seconds value, otherwise round() will be zero and devision by zero is not possible")
+			 return
+		elif (globalBrightness < 0.25):
+			 print("brightness is getting too small, turning off rainbow")
+			 globalFirstRun = False
+			 globalBrightness = 1.0
+			 switchOff()
+			 return
+		elif ((s%round((seconds//(brightness-25)), 0) == 0)): # reduce brightness every time when the current second [s] can be devided with seconds/brightness -> fadeout steps are smooth
+			if brightness-s > 100:
+				globalBrightness = 1.0
+			unicorn.setBrightness(globalBrightness)
+			print(str(globalBrightness))
+			globalBrightness -= 0.01
+		t.sleep(1)
+
+# Homebridge APIs
+def rgb_to_hex(rgb):
+	return '%02x%02x%02x' % rgb
+
+@app.route('/api/hb-status/<string:st>', methods=['GET'])
+def homebridgeStatus(st):
+	global globalStatus
+
+	if st == 'switch': # 0 or 1
+		status = 1 # default (on startup) is 'on' -> 1
+
+		if globalStatus is 'off' or globalStatus is 'rainbow':
+			status = 0 # when it is turned off
+
+		return str(status)
+
+	elif st == 'color': # hex color
+		global globalRed, globalGreen, globalBlue
+		return str(rgb_to_hex((globalRed, globalGreen, globalBlue)))
+
+	elif st == 'brightness': # 0 to 100
+		global globalBrightness
+		return str(globalBrightness*100)[:-2]
+
+	elif st == 'rainbow':
+		statusr = 0
+
+	if globalStatus is 'rainbow':
+		 statusr = 1
+
+	return str(statusr)
+
+@app.route('/api/set/<string:c>', methods=['GET'])
+def set_colour(c):
+	global globalStatus, globalRed, globalGreen, globalBlue
+
+	switchOff()
+
+	rgb = unicorn.htmlToRGB(c)
+	globalRed = rgb[0]
+	globalGreen = rgb[1]
+	globalBlue = rgb[2]
+
+	unicorn.setColour(globalRed, globalGreen, globalBlue)
+
+	if globalStatus != 'on':
+		switchOn()
+		globalStatus = 'on'
+	return jsonify({'status': globalStatus, 'colourR': globalRed, 'colourG': globalGreen, 'colourB': globalBlue})
+
+@app.route('/api/setb/<string:b>', methods=['GET'])
+def set_brightness(b):
+	global globalStatus, globalBrightness
+
+	switchOff()
+
+	globalBrightness = float(int(b)/100)
+	unicorn.setBrightness(globalBrightness)	
+
+	if globalStatus != 'on':
+		switchOn()
+		globalStatus = 'on'
+	return jsonify({'status': globalStatus, 'brightness': globalBrightness})
 
 if __name__ == '__main__':
 	app.run(host='0.0.0.0', debug=False)
