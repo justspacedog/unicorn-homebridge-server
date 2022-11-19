@@ -48,8 +48,8 @@ Homebridge configuration (use your Homebridge <IP> and <PORT>):
 
 **MIT License**
 
-Copyright (c) 2020 [*Elio Struyf*](https://github.com/estruyf)
-Parts (c) 2020 [*Jamie Maynard*](https://github.com/j-maynard)
+Copyright (c) 2022 [*Justus*](https://github.com/justspacedog/)
+Parts (c) 2020 [*Elio Struyf*](https://github.com/estruyf), [*Jamie Maynard*](https://github.com/j-maynard)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
